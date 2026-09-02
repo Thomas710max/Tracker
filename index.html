@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control de gastos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg:#12151c; --surface:#181d27; --surface-alt:#1f2634; --line:#2a3242;
+    --text:#e9e6dd; --text-dim:#8c93a3; --accent:#c7a03d; --accent-dim:#8a7228;
+    --good:#5b8c7b; --warn:#b5482a;
+    --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important;} }
+  body{margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:15px; line-height:1.5; padding:28px 20px 60px;}
+  .wrap{max-width:760px; margin:0 auto;}
+  h1{font-family:var(--serif); font-weight:400; font-size:28px; margin:0 0 4px; letter-spacing:-0.01em;}
+  .sub{color:var(--text-dim); font-size:13.5px; margin:0 0 28px;}
+  .hero{background:var(--surface); border:1px solid var(--line); padding:22px 24px; margin-bottom:22px;}
+  .hero-label{font-size:13px; color:var(--text-dim); margin-bottom:10px;}
+  .hero-num{font-family:var(--mono); font-size:34px; color:var(--accent); font-weight:600;}
+  .hero-num small{font-size:16px; color:var(--text-dim); font-weight:400;}
+  .hero-bar{height:6px; background:var(--surface-alt); margin-top:14px; position:relative; overflow:hidden;}
+  .hero-bar-fill{height:100%; background:var(--accent); transition:width .4s ease;}
+  .hero-foot{display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-dim); margin-top:8px; font-family:var(--mono);}
+  details{background:var(--surface); border:1px solid var(--line); margin-bottom:22px;}
+  summary{padding:14px 18px; cursor:pointer; font-size:14px; color:var(--text-dim); user-select:none;}
+  summary:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .cfg-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:0 18px 18px;}
+  @media (max-width:520px){.cfg-grid{grid-template-columns:1fr;}}
+  label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:4px;}
+  input, select, textarea{width:100%; background:var(--surface-alt); border:1px solid var(--line); color:var(--text); padding:9px 10px; font-family:var(--sans); font-size:14px;}
+  input[type=number]{font-family:var(--mono);}
+  section{margin-bottom:28px;}
+  h2{font-family:var(--serif); font-weight:400; font-size:18px; margin:0 0 12px;}
+  .row{display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-top:1px solid var(--line);}
+  .row:last-child{border-bottom:1px solid var(--line);}
+  .row-name{font-size:14px;}
+  .row-nums{font-family:var(--mono); font-size:13px; color:var(--text-dim); text-align:right; white-space:nowrap;}
+  .row-nums b{color:var(--text); font-weight:600;}
+  .track{height:5px; background:var(--surface-alt); margin-top:6px;}
+  .fill{height:100%;}
+  .fill.ok{background:var(--good);} .fill.warn{background:var(--warn);}
+  .cat-block{padding:10px 0; border-top:1px solid var(--line);}
+  .cat-block:last-child{border-bottom:1px solid var(--line);}
+  .sync-row{display:flex; gap:10px; align-items:end; flex-wrap:wrap;}
+  .sync-row > div{flex:1; min-width:220px;}
+  form.add{background:var(--surface); border:1px solid var(--line); padding:16px 18px; display:grid; grid-template-columns:1fr 90px 90px 1fr 1fr auto; gap:10px; align-items:end;}
+  @media (max-width:640px){form.add{grid-template-columns:1fr 1fr;}}
+  button{background:var(--accent); color:#1a1508; border:none; font-weight:600; padding:9px 14px; font-size:13.5px; cursor:pointer;}
+  button:hover{background:var(--accent-dim); color:var(--text);}
+  button.ghost{background:transparent; border:1px solid var(--line); color:var(--text-dim); font-weight:400;}
+  button.ghost:hover{border-color:var(--accent); color:var(--accent);}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:left; font-weight:400; color:var(--text-dim); font-size:12px; padding:8px 6px; border-bottom:1px solid var(--line);}
+  td{padding:8px 6px; border-bottom:1px solid var(--line); font-family:var(--mono);}
+  td.desc{font-family:var(--sans);}
+  td.del{text-align:right; font-family:var(--sans);}
+  td.del button{padding:3px 8px; font-size:12px;}
+  .empty{color:var(--text-dim); font-size:13px; padding:16px 0;}
+  .import-box textarea{height:80px; font-family:var(--mono); font-size:12.5px; margin:10px 0;}
+  .note{font-size:12.5px; color:var(--text-dim); margin-top:8px; line-height:1.6;}
+  .msg{font-size:12.5px; margin-top:8px; min-height:16px;}
+  .msg.ok{color:var(--good);} .msg.err{color:var(--warn);}
+  .badge{font-family:var(--mono); font-size:11px; color:var(--text-dim);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Control de gastos</h1>
+  <p class="sub">Fuente: Google Sheets publicado + carga manual. Todo queda guardado en este navegador.</p>
+
+  <div class="hero">
+    <div class="hero-label">Ahorro acumulado este mes</div>
+    <div class="hero-num" id="heroNum">USD 0 <small>/ meta USD 250</small></div>
+    <div class="hero-bar"><div class="hero-bar-fill" id="heroFill" style="width:0%"></div></div>
+    <div class="hero-foot"><span id="heroPct">0%</span><span id="heroFalta">falta USD 250</span></div>
+  </div>
+
+  <section>
+    <h2>Sincronizar con el Sheet</h2>
+    <div class="sync-row">
+      <div>
+        <label for="sheetUrl">URL publicada como CSV (Archivo → Compartir → Publicar en la Web → CSV)</label>
+        <input id="sheetUrl" type="text" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv">
+      </div>
+      <button id="syncBtn" type="button">Actualizar ahora</button>
+    </div>
+    <label style="margin-top:10px; display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-dim);">
+      <input type="checkbox" id="autoSync" style="width:auto;"> Auto-actualizar cada 5 minutos mientras la pestaña está abierta
+    </label>
+    <div class="msg" id="syncMsg"></div>
+    <p class="note">Google actualiza el CSV publicado con demora (no es instantáneo) — puede tardar unos minutos en reflejar lo último cargado por Telegram. Si el fetch automático falla (bloqueo de CORS u otro), pegá el CSV a mano más abajo como respaldo.</p>
+  </section>
+
+  <details>
+    <summary>Configuración (ingreso, tipo de cambio, presupuestos)</summary>
+    <div class="cfg-grid">
+      <div><label for="cfgIngreso">Ingreso mensual (ARS)</label><input id="cfgIngreso" type="number" value="2240000"></div>
+      <div><label for="cfgTC">Tipo de cambio (ARS/USD)</label><input id="cfgTC" type="number" value="1536.59"></div>
+      <div><label for="cfgAhorro">Meta de ahorro (USD)</label><input id="cfgAhorro" type="number" value="250"></div>
+      <div><label for="cfgAlquiler">Presupuesto Alquiler (ARS)</label><input id="cfgAlquiler" type="number" value="900000"></div>
+      <div><label for="cfgServicios">Presupuesto Servicios (ARS)</label><input id="cfgServicios" type="number" value="400000"></div>
+      <div><label for="cfgOcio">Presupuesto Salidas/Ocio (ARS, opcional)</label><input id="cfgOcio" type="number" value="0"></div>
+    </div>
+  </details>
+
+  <section>
+    <h2>Presupuesto vs. gastado — este mes</h2>
+    <div id="catList"></div>
+  </section>
+
+  <section>
+    <h2>Cargar gasto manual</h2>
+    <form class="add" id="addForm">
+      <div><label for="fFecha">Fecha</label><input id="fFecha" type="date"></div>
+      <div><label for="fMonto">Monto</label><input id="fMonto" type="number" step="0.01" required></div>
+      <div><label for="fMoneda">Moneda</label><select id="fMoneda"><option>ARS</option><option>USD</option></select></div>
+      <div><label for="fCat">Categoría</label>
+        <select id="fCat">
+          <option>Alquiler</option><option>Servicios</option><option>Salidas/Ocio</option>
+          <option>Musica</option><option>Ahorro/Inversion</option><option>Otros</option>
+        </select>
+      </div>
+      <div><label for="fDesc">Descripción</label><input id="fDesc" type="text" placeholder="cena, uber..."></div>
+      <button type="submit">Agregar</button>
+    </form>
+  </section>
+
+  <details class="import-box">
+    <summary>Respaldo: pegar CSV a mano</summary>
+    <div style="padding:0 18px 18px;">
+      <textarea id="importText" placeholder="Fecha,Monto,Moneda,Categoria,Descripcion,MensajeOriginal,Usuario"></textarea>
+      <button class="ghost" id="importBtn" type="button">Importar filas pegadas</button>
+      <div class="msg" id="importMsg"></div>
+    </div>
+  </details>
+
+  <section>
+    <h2>Movimientos <span class="badge" id="txCount"></span></h2>
+    <div id="txWrap"></div>
+  </section>
+</div>
+
+<script>
+const CATS = ["Alquiler","Servicios","Salidas/Ocio","Musica","Ahorro/Inversion","Otros"];
+let settings = { ingreso:2240000, tc:1536.59, ahorro:250, alquiler:900000, servicios:400000, ocio:0, sheetUrl:'', autoSync:false };
+let synced = [];   // reemplazado en cada sync exitoso
+let manual = [];    // persistente, cargado a mano
+let autoTimer = null;
+
+function safeGet(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function safeSet(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ console.error('storage error', e); }
+}
+
+function loadState(){
+  settings = safeGet('gt_settings', settings);
+  manual = safeGet('gt_manual', []);
+  synced = safeGet('gt_synced', []);
+  applySettingsToInputs();
+  document.getElementById('sheetUrl').value = settings.sheetUrl || '';
+  document.getElementById('autoSync').checked = !!settings.autoSync;
+  if(settings.autoSync) startAutoSync();
+  render();
+}
+function saveSettings(){ safeSet('gt_settings', settings); }
+function saveManual(){ safeSet('gt_manual', manual); }
+function saveSynced(){ safeSet('gt_synced', synced); }
+
+function applySettingsToInputs(){
+  document.getElementById('cfgIngreso').value = settings.ingreso;
+  document.getElementById('cfgTC').value = settings.tc;
+  document.getElementById('cfgAhorro').value = settings.ahorro;
+  document.getElementById('cfgAlquiler').value = settings.alquiler;
+  document.getElementById('cfgServicios').value = settings.servicios;
+  document.getElementById('cfgOcio').value = settings.ocio;
+}
+['cfgIngreso','cfgTC','cfgAhorro','cfgAlquiler','cfgServicios','cfgOcio'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', ()=>{
+    settings.ingreso = +document.getElementById('cfgIngreso').value || 0;
+    settings.tc = +document.getElementById('cfgTC').value || 1;
+    settings.ahorro = +document.getElementById('cfgAhorro').value || 0;
+    settings.alquiler = +document.getElementById('cfgAlquiler').value || 0;
+    settings.servicios = +document.getElementById('cfgServicios').value || 0;
+    settings.ocio = +document.getElementById('cfgOcio').value || 0;
+    saveSettings(); render();
+  });
+});
+document.getElementById('sheetUrl').addEventListener('change', function(){
+  settings.sheetUrl = this.value.trim(); saveSettings();
+});
+document.getElementById('autoSync').addEventListener('change', function(){
+  settings.autoSync = this.checked; saveSettings();
+  if(this.checked) startAutoSync(); else stopAutoSync();
+});
+function startAutoSync(){ stopAutoSync(); autoTimer = setInterval(doSync, 5*60*1000); }
+function stopAutoSync(){ if(autoTimer){ clearInterval(autoTimer); autoTimer = null; } }
+
+function toARS(monto, moneda){ return moneda === 'USD' ? monto * settings.tc : monto; }
+function thisMonthKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function isThisMonth(fecha){ return (fecha||'').slice(0,7) === thisMonthKey(); }
+function allExpenses(){ return synced.concat(manual); }
+
+function render(){
+  const monthExp = allExpenses().filter(e => isThisMonth(e.fecha));
+  const ahorroUSD = monthExp.filter(e=>e.categoria==='Ahorro/Inversion')
+    .reduce((s,e)=> s + (e.moneda==='USD' ? e.monto : e.monto/settings.tc), 0);
+  const pct = settings.ahorro > 0 ? Math.min(ahorroUSD/settings.ahorro,1)*100 : 0;
+  document.getElementById('heroNum').innerHTML = `USD ${ahorroUSD.toFixed(0)} <small>/ meta USD ${settings.ahorro}</small>`;
+  document.getElementById('heroFill').style.width = pct+'%';
+  document.getElementById('heroPct').textContent = pct.toFixed(0)+'%';
+  const falta = Math.max(settings.ahorro - ahorroUSD, 0);
+  document.getElementById('heroFalta').textContent = falta>0 ? `falta USD ${falta.toFixed(0)}` : 'meta cumplida';
+
+  const budgets = { 'Alquiler':settings.alquiler, 'Servicios':settings.servicios, 'Salidas/Ocio':settings.ocio };
+  const catList = document.getElementById('catList');
+  catList.innerHTML = '';
+  CATS.forEach(cat=>{
+    const spentARS = monthExp.filter(e=>e.categoria===cat).reduce((s,e)=> s + toARS(e.monto,e.moneda), 0);
+    const budget = budgets[cat];
+    const div = document.createElement('div');
+    div.className = 'cat-block';
+    if(budget && budget > 0){
+      const pctc = Math.min(spentARS/budget,1)*100;
+      const over = spentARS > budget;
+      div.innerHTML = `
+        <div class="row" style="border-top:none; padding:0 0 6px;">
+          <div class="row-name">${cat}</div>
+          <div class="row-nums"><b>$${Math.round(spentARS).toLocaleString('es-AR')}</b> / $${Math.round(budget).toLocaleString('es-AR')}</div>
+        </div>
+        <div class="track"><div class="fill ${over?'warn':'ok'}" style="width:${pctc}%"></div></div>`;
+    } else {
+      div.innerHTML = `
+        <div class="row" style="border-top:none; padding:0;">
+          <div class="row-name">${cat}</div>
+          <div class="row-nums">$${Math.round(spentARS).toLocaleString('es-AR')} <span style="opacity:.6">sin tope</span></div>
+        </div>`;
+    }
+    catList.appendChild(div);
+  });
+
+  const all = allExpenses();
+  document.getElementById('txCount').textContent = all.length ? `(${all.length})` : '';
+  const wrap = document.getElementById('txWrap');
+  if(all.length === 0){
+    wrap.innerHTML = '<div class="empty">Todavía no hay gastos cargados.</div>';
+  } else {
+    const sorted = [...all].sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||''));
+    let rows = sorted.map(e=>`
+      <tr>
+        <td>${e.fecha||'-'}</td>
+        <td>${e.moneda} ${(+e.monto).toLocaleString('es-AR')}</td>
+        <td class="desc">${e.categoria}</td>
+        <td class="desc">${e.descripcion||''}</td>
+        <td class="badge">${e.fuente||''}</td>
+        <td class="del">${e.fuente==='manual' ? `<button class="ghost" onclick="removeManual('${e.id}')">Borrar</button>` : ''}</td>
+      </tr>`).join('');
+    wrap.innerHTML = `<table><thead><tr><th>Fecha</th><th>Monto</th><th>Categoría</th><th>Descripción</th><th>Origen</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+}
+
+function removeManual(id){ manual = manual.filter(e=>e.id!==id); saveManual(); render(); }
+window.removeManual = removeManual;
+
+document.getElementById('addForm').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  const fecha = document.getElementById('fFecha').value || new Date().toISOString().slice(0,10);
+  const monto = +document.getElementById('fMonto').value;
+  if(!monto){ return; }
+  manual.push({
+    id: 'm_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+    fecha, monto,
+    moneda: document.getElementById('fMoneda').value,
+    categoria: document.getElementById('fCat').value,
+    descripcion: document.getElementById('fDesc').value,
+    fuente: 'manual'
+  });
+  saveManual(); render();
+  this.reset();
+});
+
+function rowsFromParsed(data){
+  const out = [];
+  data.forEach(r=>{
+    const fecha = (r.Fecha||'').trim();
+    const monto = parseFloat(r.Monto);
+    const desc = (r.Descripcion||'').trim();
+    const msgOrig = (r.MensajeOriginal||'').trim();
+    if(!fecha || isNaN(monto)) return;
+    if(/ejemplo/i.test(desc) || /ejemplo/i.test(msgOrig)) return;
+    out.push({
+      id: 's_'+fecha+'_'+monto+'_'+Math.random().toString(36).slice(2,5),
+      fecha, monto,
+      moneda: (r.Moneda||'ARS').trim(),
+      categoria: (r.Categoria||'Otros').trim(),
+      descripcion: desc,
+      fuente: 'sheet'
+    });
+  });
+  return out;
+}
+
+function doSync(){
+  const url = settings.sheetUrl;
+  const msg = document.getElementById('syncMsg');
+  if(!url){ msg.textContent = 'Pegá primero la URL publicada del Sheet.'; msg.className='msg err'; return; }
+  msg.textContent = 'Actualizando...'; msg.className = 'msg';
+  fetch(url).then(r=>{
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.text();
+  }).then(text=>{
+    const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
+    synced = rowsFromParsed(parsed.data);
+    saveSynced(); render();
+    msg.textContent = `Sincronizado: ${synced.length} filas del Sheet (${new Date().toLocaleTimeString('es-AR')}).`;
+    msg.className = 'msg ok';
+  }).catch(err=>{
+    msg.textContent = 'No se pudo leer el Sheet (' + err.message + '). Usá el respaldo de pegar CSV a mano.';
+    msg.className = 'msg err';
+  });
+}
+document.getElementById('syncBtn').addEventListener('click', doSync);
+
+document.getElementById('importBtn').addEventListener('click', function(){
+  const raw = document.getElementById('importText').value.trim();
+  const msg = document.getElementById('importMsg');
+  if(!raw){ msg.textContent='Pegá filas primero.'; msg.className='msg err'; return; }
+  const parsed = Papa.parse(raw, {header:true, skipEmptyLines:true});
+  const rows = rowsFromParsed(parsed.data).map(r=>({...r, fuente:'manual', id:'m_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)}));
+  manual = manual.concat(rows);
+  saveManual(); render();
+  msg.textContent = `${rows.length} filas importadas.`;
+  msg.className = 'msg ok';
+  document.getElementById('importText').value = '';
+});
+
+loadState();
+</script>
+</body>
+</html>
