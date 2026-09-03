@@ -242,7 +242,8 @@
           </div>
           <div class="full"><label for="fDesc">Descripción</label><input id="fDesc" type="text" placeholder="cena, sueldo..."></div>
         </div>
-        <button class="primary" type="submit">Agregar</button>
+        <button class="primary" type="submit" id="addSubmitBtn">Agregar</button>
+        <button class="ghost" type="button" id="cancelEditBtn" style="display:none; margin-left:8px;">Cancelar edición</button>
       </form>
     </section>
 
@@ -466,22 +467,50 @@ function renderDashboard(){
 
 /* ---------- MOVIMIENTOS ---------- */
 let currentType = 'gasto';
+let editingId = null;
+let editingType = null;
+
+function setType(type){
+  currentType = type;
+  document.querySelectorAll('.type-toggle button').forEach(x=>x.classList.toggle('active', x.dataset.type===type));
+  const pagoWrap = document.getElementById('fPagoWrap');
+  const catSel = document.getElementById('fCat');
+  if(type === 'ingreso'){
+    catSel.innerHTML = ING_CATS.map(c=>`<option>${c}</option>`).join('');
+    pagoWrap.style.display = 'none';
+  } else {
+    catSel.innerHTML = CATS.map(c=>`<option>${c}</option>`).join('');
+    pagoWrap.style.display = '';
+  }
+}
 document.querySelectorAll('.type-toggle button').forEach(b=>{
-  b.addEventListener('click', function(){
-    document.querySelectorAll('.type-toggle button').forEach(x=>x.classList.remove('active'));
-    this.classList.add('active');
-    currentType = this.dataset.type;
-    const catWrap = document.getElementById('fCatWrap');
-    const pagoWrap = document.getElementById('fPagoWrap');
-    const catSel = document.getElementById('fCat');
-    if(currentType === 'ingreso'){
-      catSel.innerHTML = ING_CATS.map(c=>`<option>${c}</option>`).join('');
-      pagoWrap.style.display = 'none';
-    } else {
-      catSel.innerHTML = CATS.map(c=>`<option>${c}</option>`).join('');
-      pagoWrap.style.display = '';
-    }
-  });
+  b.addEventListener('click', function(){ setType(this.dataset.type); });
+});
+
+function editEntry(id, tipo){
+  const arr = tipo==='ingreso' ? ingresos : manual;
+  const item = arr.find(e=>e.id===id);
+  if(!item) return;
+  setType(tipo);
+  document.getElementById('fFecha').value = item.fecha || '';
+  document.getElementById('fMonto').value = item.monto;
+  document.getElementById('fMoneda').value = item.moneda;
+  document.getElementById('fCat').value = item.categoria;
+  if(tipo==='gasto') document.getElementById('fPago').value = item.medioPago || 'Efectivo';
+  document.getElementById('fDesc').value = item.descripcion || '';
+  editingId = id; editingType = tipo;
+  document.getElementById('addSubmitBtn').textContent = 'Guardar cambios';
+  document.getElementById('cancelEditBtn').style.display = '';
+  document.getElementById('addForm').scrollIntoView({behavior:'smooth', block:'center'});
+}
+window.editEntry = editEntry;
+
+document.getElementById('cancelEditBtn').addEventListener('click', function(){
+  editingId = null; editingType = null;
+  document.getElementById('addSubmitBtn').textContent = 'Agregar';
+  this.style.display = 'none';
+  document.getElementById('addForm').reset();
+  setType('gasto');
 });
 
 document.getElementById('sheetUrl').addEventListener('change', function(){ settings.sheetUrl = this.value.trim(); saveSettings(); });
@@ -546,7 +575,21 @@ document.getElementById('addForm').addEventListener('submit', function(ev){
   const moneda = document.getElementById('fMoneda').value;
   const categoria = document.getElementById('fCat').value;
   const descripcion = document.getElementById('fDesc').value;
-  if(currentType === 'ingreso'){
+
+  if(editingId){
+    if(editingType === 'ingreso'){
+      const item = ingresos.find(e=>e.id===editingId);
+      if(item) Object.assign(item, {fecha, monto, moneda, categoria, descripcion});
+      saveIngresos();
+    } else {
+      const item = manual.find(e=>e.id===editingId);
+      if(item) Object.assign(item, {fecha, monto, moneda, categoria, medioPago: document.getElementById('fPago').value, descripcion});
+      saveManual();
+    }
+    editingId = null; editingType = null;
+    document.getElementById('addSubmitBtn').textContent = 'Agregar';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+  } else if(currentType === 'ingreso'){
     ingresos.push({ id:'i_'+Date.now()+'_'+Math.random().toString(36).slice(2,7), fecha, monto, moneda, categoria, descripcion });
     saveIngresos();
   } else {
@@ -576,7 +619,7 @@ function renderMovimientos(){
     const signClass = e.tipo==='ingreso' ? 'income' : '';
     const sign = e.tipo==='ingreso' ? '+' : '-';
     const delBtn = (e.fuente==='manual')
-      ? `<button class="ghost" onclick="${e.tipo==='ingreso'?'removeIngreso':'removeManual'}('${e.id}')">Borrar</button>` : '';
+      ? `<button class="ghost" onclick="editEntry('${e.id}','${e.tipo}')">Editar</button> <button class="ghost" onclick="${e.tipo==='ingreso'?'removeIngreso':'removeManual'}('${e.id}')">Borrar</button>` : '';
     return `<tr>
       <td>${e.fecha||'-'}</td>
       <td class="${signClass}">${sign}${e.moneda} ${(+e.monto).toLocaleString('es-AR')}</td>
