@@ -231,7 +231,7 @@
           <div id="fCatWrap"><label for="fCat">Categoría</label>
             <select id="fCat">
               <option>Alquiler</option><option>Servicios</option><option>Transporte</option><option>Salidas/Ocio</option>
-              <option>Musica</option><option>Ahorro/Inversion</option><option>Otros</option>
+              <option>Musica</option><option>Saludable</option><option>Ahorro/Inversion</option><option>Otros</option>
             </select>
           </div>
           <div id="fPagoWrap"><label for="fPago">Medio de pago</label>
@@ -244,6 +244,7 @@
         </div>
         <button class="primary" type="submit" id="addSubmitBtn">Agregar</button>
         <button class="ghost" type="button" id="cancelEditBtn" style="display:none; margin-left:8px;">Cancelar edición</button>
+        <div class="msg" id="addMsg"></div>
       </form>
     </section>
 
@@ -282,7 +283,7 @@
             <select id="notaCat">
               <option value="">Sin vincular</option>
               <option>Alquiler</option><option>Servicios</option><option>Transporte</option><option>Salidas/Ocio</option>
-              <option>Musica</option><option>Ahorro/Inversion</option><option>Otros</option>
+              <option>Musica</option><option>Saludable</option><option>Ahorro/Inversion</option><option>Otros</option>
             </select>
           </div>
         </div>
@@ -341,7 +342,7 @@
 </div>
 
 <script>
-const CATS = ["Alquiler","Servicios","Transporte","Salidas/Ocio","Musica","Ahorro/Inversion","Otros"];
+const CATS = ["Alquiler","Servicios","Transporte","Salidas/Ocio","Musica","Saludable","Ahorro/Inversion","Otros"];
 const FIXED_EXCLUDE = ["Alquiler","Servicios","Otros"];
 const PAGOS = ["Efectivo","Credito Nacion Visa","Credito Nacion MC","Visa Galicia","Nubi","MP","Naranja","Banco Nacion"];
 const ING_CATS = ["Sueldo","Extra","Profit"];
@@ -349,7 +350,7 @@ const ING_CATS = ["Sueldo","Extra","Profit"];
 let settings = {
   tc:1536.59, sheetUrl:'', theme:'night',
   creditMethods:['Credito Nacion Visa','Credito Nacion MC'],
-  budgets:{ Alquiler:900000, Servicios:400000, Transporte:0, 'Salidas/Ocio':0, Musica:0, 'Ahorro/Inversion':384148, Otros:0 },
+  budgets:{ Alquiler:900000, Servicios:400000, Transporte:0, 'Salidas/Ocio':0, Musica:0, Saludable:0, 'Ahorro/Inversion':384148, Otros:0 },
   hipHito:10000, hipMetaTotal:32700,
   hipValor:60000, hipPct:75, hipPlazo:15, hipTNA:6.70, hipIngreso:2240000
 };
@@ -519,7 +520,7 @@ function rowsFromParsed(data){
   const out = [];
   data.forEach(r=>{
     const fecha = (r.Fecha||'').trim();
-    const monto = parseFloat(r.Monto);
+    const monto = parseFloat(String(r.Monto||'').replace(/[^0-9.\-]/g,''));
     const desc = (r.Descripcion||'').trim();
     const msgOrig = (r.MensajeOriginal||'').trim();
     if(!fecha || isNaN(monto)) return;
@@ -569,9 +570,16 @@ document.getElementById('importBtn').addEventListener('click', function(){
 
 document.getElementById('addForm').addEventListener('submit', function(ev){
   ev.preventDefault();
+  const addMsg = document.getElementById('addMsg');
+  addMsg.textContent = ''; addMsg.className = 'msg';
   const fecha = document.getElementById('fFecha').value || new Date().toISOString().slice(0,10);
-  const monto = +document.getElementById('fMonto').value;
-  if(!monto) return;
+  const montoRaw = document.getElementById('fMonto').value;
+  const monto = +montoRaw;
+  if(!montoRaw || isNaN(monto) || monto <= 0){
+    addMsg.textContent = 'Monto inválido — escribilo sin puntos ni comas (ej: 2240000, no 2.240.000).';
+    addMsg.className = 'msg err';
+    return;
+  }
   const moneda = document.getElementById('fMoneda').value;
   const categoria = document.getElementById('fCat').value;
   const descripcion = document.getElementById('fDesc').value;
@@ -601,7 +609,8 @@ document.getElementById('addForm').addEventListener('submit', function(ev){
     });
     saveManual();
   }
-  renderAll(); this.reset();
+  renderAll(); this.reset(); setType('gasto');
+  addMsg.textContent = 'Guardado.'; addMsg.className = 'msg ok';
 });
 
 function removeManual(id){ manual = manual.filter(e=>e.id!==id); saveManual(); renderAll(); }
